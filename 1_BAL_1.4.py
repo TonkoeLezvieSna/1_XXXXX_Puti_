@@ -1,5 +1,5 @@
 #1
-#v1.3
+#v1.4
 
 # -*- coding: utf-8 -*-
 import openpyxl
@@ -16,22 +16,33 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Инициализируем морфологический анализатор
 morph = MorphAnalyzer()
 
+# Преобразует слово из родительного падежа в именительный падеж.
 def convert_to_nominative(word):
-    """
-    Преобразует слово из родительного падежа в именительный падеж.
-    """
-    logging.info(f"Преобразуем слово '{word}' из родительного падежа в именительный падеж.")
-    parsed_word = morph.parse(word)[0]
-    nominative_form = parsed_word.inflect({'nomn'}).word
-    logging.info(f"Преобразованное слово: '{nominative_form.capitalize()}'")
-    return nominative_form.capitalize()
+    try:
+        logging.info(f"Преобразуем слово '{word}' из родительного падежа в именительный падеж.")
+        parsed_word = morph.parse(word)[0]
+        if parsed_word:
+            nominative_form = parsed_word.inflect({'nomn'}).word
+            logging.info(f"Преобразованное слово: '{nominative_form.capitalize()}'")
+            return nominative_form.capitalize()
+        else:
+            logging.error(f"Не удалось разобрать слово: '{word}'")
+            return word
+    except Exception as e:
+        logging.error(f"Ошибка при преобразовании слова '{word}': {str(e)}")
+        return word
 
+# Отображение ошибок
 def show_error_message(message):
-    root = tk.Tk()
-    root.withdraw()  # Скрываем главное окно Tkinter
-    messagebox.showerror("Ошибка", message)
-    root.destroy()
+    try:
+        root = tk.Tk()
+        root.withdraw()  # Скрываем главное окно Tkinter
+        messagebox.showerror("Ошибка", message)
+        root.destroy()
+    except Exception as e:
+        logging.error(f"Ошибка при отображении сообщения об ошибке: {str(e)}")
 
+# Главная функция
 def main():
     try:
         # Получаем текущую директорию
@@ -43,6 +54,8 @@ def main():
         logging.info(f"Найденные файлы Excel: {excel_files}")
         
         # Проверяем, что файл Excel существует и единственный
+        if not excel_files:
+            raise FileNotFoundError("В текущей директории не найдено файлов Excel.")
         if len(excel_files) != 1:
             raise FileNotFoundError("В текущей директории должен быть только один файл Excel.")
         logging.info(f"Файл Excel найден: {excel_files[0]}")
@@ -52,9 +65,12 @@ def main():
         logging.info(f"Полный путь к файлу Excel: {excel_file_path}")
         
         # Открываем файл Excel
-        workbook = openpyxl.load_workbook(excel_file_path)
-        sheet = workbook.active
-        logging.info(f"Файл Excel открыт успешно.")
+        try:
+            workbook = openpyxl.load_workbook(excel_file_path)
+            sheet = workbook.active
+            logging.info(f"Файл Excel открыт успешно.")
+        except Exception as e:
+            raise Exception(f"Ошибка при открытии файла Excel: {str(e)}")
         
         # Новые значения, которые нужно вставить в столбец 3
         new_values = {
@@ -80,12 +96,15 @@ def main():
         logging.info(f"Новые значения для вставки: {new_values}")
         
         # Проходим по строкам и обновляем значения в столбце 3 для заданных кодов
-        for row in sheet.iter_rows(min_row=2, max_col=3):
-            code = row[0].value
-            value = row[2].value
-            if code in new_values:
-                sheet.cell(row=row[0].row, column=3).value = new_values[code]
-                logging.info(f"Обновлено значение для кода '{code}': '{new_values[code]}'")
+        try:
+            for row in sheet.iter_rows(min_row=2, max_col=3):
+                code = row[0].value
+                value = row[2].value
+                if code in new_values:
+                    sheet.cell(row=row[0].row, column=3).value = new_values[code]
+                    logging.info(f"Обновлено значение для кода '{code}': '{new_values[code]}'")
+        except Exception as e:
+            raise Exception(f"Ошибка при обновлении значений в Excel: {str(e)}")
         
         # Переменные для хранения ФИО в родительном падеже
         fr = None
@@ -93,41 +112,50 @@ def main():
         or_ = None
         
         # Проходим по строкам и ищем ФИО в родительном падеже
-        for row in sheet.iter_rows(min_row=2, max_col=3):
-            code = row[0].value
-            value = row[2].value
-            if code == 'ФР':
-                fr = value
-                logging.info(f"Найдено ФИО в родительном падеже (ФР): '{fr}'")
-            elif code == 'ИР':
-                ir = value
-                logging.info(f"Найдено ФИО в родительном падеже (ИР): '{ir}'")
-            elif code == 'ОР':
-                or_ = value
-                logging.info(f"Найдено ФИО в родительном падеже (ОР): '{or_}'")
+        try:
+            for row in sheet.iter_rows(min_row=2, max_col=3):
+                code = row[0].value
+                value = row[2].value
+                if code == 'ФР':
+                    fr = value
+                    logging.info(f"Найдено ФИО в родительном падеже (ФР): '{fr}'")
+                elif code == 'ИР':
+                    ir = value
+                    logging.info(f"Найдено ФИО в родительном падеже (ИР): '{ir}'")
+                elif code == 'ОР':
+                    or_ = value
+                    logging.info(f"Найдено ФИО в родительном падеже (ОР): '{or_}'")
+        except Exception as e:
+            raise Exception(f"Ошибка при поиске ФИО в родительном падеже: {str(e)}")
         
         # Если все части ФИО в родительном падеже найдены, преобразуем их
         if fr and ir and or_:
-            fi = convert_to_nominative(fr)
-            ii = convert_to_nominative(ir)
-            oi = convert_to_nominative(or_)
-            
-            # Находим строки для записи ФИО в именительном падеже
-            for row in sheet.iter_rows(min_row=2, max_col=3):
-                code = row[0].value
-                if code == 'ФИ':
-                    sheet.cell(row=row[0].row, column=3).value = fi
-                    logging.info(f"Записано ФИО в именительном падеже (ФИ): '{fi}'")
-                elif code == 'ИИ':
-                    sheet.cell(row=row[0].row, column=3).value = ii
-                    logging.info(f"Записано ФИО в именительном падеже (ИИ): '{ii}'")
-                elif code == 'ОИ':
-                    sheet.cell(row=row[0].row, column=3).value = oi
-                    logging.info(f"Записано ФИО в именительном падеже (ОИ): '{oi}'")
+            try:
+                fi = convert_to_nominative(fr)
+                ii = convert_to_nominative(ir)
+                oi = convert_to_nominative(or_)
+                
+                # Находим строки для записи ФИО в именительном падеже
+                for row in sheet.iter_rows(min_row=2, max_col=3):
+                    code = row[0].value
+                    if code == 'ФИ':
+                        sheet.cell(row=row[0].row, column=3).value = fi
+                        logging.info(f"Записано ФИО в именительном падеже (ФИ): '{fi}'")
+                    elif code == 'ИИ':
+                        sheet.cell(row=row[0].row, column=3).value = ii
+                        logging.info(f"Записано ФИО в именительном падеже (ИИ): '{ii}'")
+                    elif code == 'ОИ':
+                        sheet.cell(row=row[0].row, column=3).value = oi
+                        logging.info(f"Записано ФИО в именительном падеже (ОИ): '{oi}'")
+            except Exception as e:
+                raise Exception(f"Ошибка при преобразовании и записи ФИО: {str(e)}")
         
         # Сохраняем изменения в файле Excel
-        workbook.save(excel_file_path)
-        logging.info(f"Изменения сохранены в файле Excel: {excel_file_path}")
+        try:
+            workbook.save(excel_file_path)
+            logging.info(f"Изменения сохранены в файле Excel: {excel_file_path}")
+        except Exception as e:
+            raise Exception(f"Ошибка при сохранении файла Excel: {str(e)}")
         
         # Указываем путь к запускаемой программе
         program_to_run = os.path.normpath('F:\\Работа\\Автоматизация-5\\cmd\\V1.15.py')
@@ -139,8 +167,11 @@ def main():
         logging.info(f"Файл запускаемой программы найден.")
         
         # Запускаем другую программу
-        subprocess.run(['python', program_to_run])
-        logging.info("Программа завершена успешно.")
+        try:
+            subprocess.run(['python', program_to_run])
+            logging.info("Программа завершена успешно.")
+        except Exception as e:
+            raise Exception(f"Ошибка при запуске программы: {str(e)}")
     except Exception as e:
         logging.error(f"Произошла ошибка: {str(e)}")
         show_error_message(f"Произошла ошибка: {str(e)}")
